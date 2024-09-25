@@ -42,6 +42,7 @@ local _default_opts = {
   ignore_case = false,
   selector_style = "float",
   use_exclude_default = true,
+  filter_wins = nil,
   exclude = nil,
 }
 
@@ -84,8 +85,9 @@ chowcho.run = function(fn, opt)
 
   ---@type integer[]
   local wins = vim.api.nvim_tabpage_list_wins(0)
-  if opt_local.use_exclude_default then
-    wins = filter_wins(wins)
+  if opt_local.use_exclude_default or opt_local.filter_wins then
+    local filter = opt_local.filter_wins or filter_wins
+    wins = filter(wins)
   end
 
   if #opt_local.labels < #wins then
