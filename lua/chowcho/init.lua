@@ -42,6 +42,7 @@ local _default_opts = {
   ignore_case = false,
   selector_style = "float",
   use_exclude_default = true,
+  ---@type fun(wins:integer[]):Iter
   filter_wins = nil,
   exclude = nil,
 }
@@ -104,7 +105,7 @@ chowcho.run = function(fn, opt)
   select_manager:pre_proc()
   select_manager:highlight()
 
-  for i, v in ipairs(wins) do
+  for i, v in vim.iter(wins):enumerate() do
     if not vim.api.nvim_win_is_valid(v) then
       goto continue
     end
@@ -125,7 +126,7 @@ chowcho.run = function(fn, opt)
 
   vim.cmd.redraw()
 
-  local success, val = pcall(vim.fn.getchar)
+  local success, val = pcall(vim.fn.getchar, -1, { number = false })
   if success then
     val = vim.fn.nr2char(val)
     if val ~= nil then
@@ -144,6 +145,42 @@ chowcho.run = function(fn, opt)
 
   vim.cmd.redraw()
 end
+
+---list up candidate windows
+---@param opt? Chowcho.Config.Root
+---@return integer[]
+chowcho.get_candidates = function(opt)
+    local opt_local = vim.tbl_deep_extend("force", _default_opts, opt or {})
+
+    ---@type integer[]
+    local wins = vim.api.nvim_tabpage_list_wins(0)
+    if opt_local.use_exclude_default or opt_local.filter_wins then
+        local filter = opt_local.filter_wins or filter_wins
+        wins = filter(wins)
+    end
+
+    if #opt_local.labels < #wins then
+        util.logger.notify(
+            "The number of windows exceeds the maximum number.\nThe maximum number is determined by the length of the labels array.",
+            vim.log.levels.WARN
+        )
+        return {}
+    end
+
+    return vim.iter(wins):filter(function(win)
+        if not vim.api.nvim_win_is_valid(win) then
+            return false
+        end
+        local buf = vim.api.nvim_win_get_buf(win)
+        if opt_local.exclude ~= nil then
+            if opt_local.exclude(buf, win) then
+                return false
+            end
+        end
+        return true
+    end):totable()
+end
+
 
 chowcho.setup = function(opt)
   if type(opt) == "table" then
